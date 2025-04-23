@@ -57,7 +57,7 @@ Class Form1
                         nRet = ListNamedExports(sz, sExp)
                         If nRet Then
                             For i As Long = 0 To UBound(sExp)
-                                If Check2.Value = vbChecked Then
+                                If Check2.Value = vbUnchecked Then
                                     If LCase$(pszSymbol) = LCase$(sExp(i)) Then
                                         AppendLog "Symbol " & pszSymbol & " found in " & sz
                                         nf += 1
@@ -125,7 +125,7 @@ Class Form1
                     nRet = ListNamedExports(sz, sExp)
                     If nRet Then
                         For i As Long = 0 To UBound(sExp)
-                            If Check2.Value = vbChecked Then
+                            If Check2.Value = vbUnchecked Then
                                 If LCase$(pszSymbol) = LCase$(sExp(i)) Then
                                     AppendLog "Symbol " & pszSymbol & " found in " & sz
                                     nf += 1
@@ -191,14 +191,14 @@ Class Form1
         hFile = CreateFileW(StrPtr(szPE), GENERIC_READ, FILE_SHARE_READ, vbNullPtr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0)
 
         If hFile = INVALID_HANDLE_VALUE Then
-            Debug.Print "Failed to open file " & szPE
+            AppendLog "Failed to open file " & szPE & " :: Error 0x" & Hex$(Err.LastDllError) & ", " & GetSystemErrorString(Err.LastDllError)
             Exit Function
         End If
 
         hMapping = CreateFileMappingW(hFile, vbNullPtr, PAGE_READONLY, 0, 0, 0)
 
         If hMapping = 0 Then
-            Debug.Print "Failed to create mapping " & szPE & " :: Error 0x" & Hex$(Err.LastDllError) & ", " & GetSystemErrorString(Err.LastDllError)
+            AppendLog "Failed to create mapping " & szPE & " :: Error 0x" & Hex$(Err.LastDllError) & ", " & GetSystemErrorString(Err.LastDllError)
             CloseHandle hFile
             Return 0
         End If
@@ -206,7 +206,7 @@ Class Form1
         lpBaseAddress = MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0)
     
         If lpBaseAddress = 0 Then
-            Debug.Print "Failed to map file " & szPE & " :: Error 0x" & Hex$(Err.LastDllError) & ", " & GetSystemErrorString(Err.LastDllError)
+            AppendLog "Failed to map file " & szPE & " :: Error 0x" & Hex$(Err.LastDllError) & ", " & GetSystemErrorString(Err.LastDllError)
             CloseHandle hMapping
             CloseHandle hFile
             Return 0

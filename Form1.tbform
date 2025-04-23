@@ -76,7 +76,7 @@
 			"showGrid": true,
 			"showOutlines": false
 		},
-		"__lastUpdateMarker": 2741557215,
+		"__lastUpdateMarker": 960997990,
 		"_children": [
 			{
 				"Alignment": "vbRightJustify",
@@ -908,7 +908,7 @@
 				"Top": 79,
 				"TransparencyKey": -1,
 				"UseMaskColor": false,
-				"Value": "vbUnchecked",
+				"Value": "vbChecked",
 				"Visible": true,
 				"VisualStyles": true,
 				"WhatsThisHelpID": 0,
