@@ -1,0 +1,330 @@
+[Description("")]
+[FormDesignerId("0C382693-B09D-4202-8891-DBB85B18283B")]
+[PredeclaredId]
+Class Form1
+    Private n As Long, nf As Long
+    Private IsWOW64 As Boolean
+    
+    Public Sub AppendLog(smsg As String)
+    Text4.Text = Text4.Text & smsg & vbCrLf
+    SendMessage Text4.hWnd, EM_SCROLL, SB_BOTTOM, ByVal 0&
+    End Sub
+    Private Sub Command1_Click() Handles Command1.Click
+        ScanForExports Text2.Text, Text3.Text, Text1.Text
+    End Sub
+    
+    Public Sub ScanForExports(ByVal pszPath As String, ByVal pszFilter As String, ByVal pszSymbol As String)
+        Dim siPath As IShellItem
+        Dim pEnum As IEnumShellItems
+        Dim siChild As IShellItem
+        Dim nRet As Long
+        Dim sExp() As String
+        Dim hr As Long
+        Dim lp As LongPtr, sz As String
+        Dim lpn As LongPtr, szn As String
+        
+        Dim dwAttrib As SFGAOF
+        n = 0: nf = 0
+        SHCreateItemFromParsingName pszPath, Nothing, IID_IShellItem, siPath
+        If (siPath Is Nothing) = False Then
+            siPath.BindToHandler 0, BHID_EnumItems, IID_IEnumShellItems, pEnum
+            If pEnum Is Nothing Then Exit Sub
+            Label4.Caption = "Scanning..."
+            Do While pEnum.Next(1, siChild) = S_OK
+                sz = "": szn = "": dwAttrib = 0
+                If Check1.Value = vbChecked Then
+                    siChild.GetAttributes SFGAO_FOLDER Or SFGAO_STREAM, dwAttrib
+                    If ((dwAttrib And SFGAO_FOLDER) = SFGAO_FOLDER) And ((dwAttrib And SFGAO_STREAM) = 0) Then
+                        ScanRecurse siChild, pszFilter, pszSymbol
+                        Continue Do
+                    End If
+                End If
+                siChild.GetDisplayName SIGDN_FILESYSPATH, lp
+                If lp Then
+                    sz = LPWSTRtoStr(lp)
+                Else
+                    Debug.Print "Error getting SIGDN_FILESYSPATH"
+                End If
+                siChild.GetDisplayName SIGDN_NORMALDISPLAY, lpn
+                If lpn Then
+                    szn = LPWSTRtoStr(lpn)
+                Else
+                    Debug.Print "Error getting SIGDN_NORMALDISPLAY"
+                End If
+                If (sz <> "") AndAlso (PathFileExists(sz)) Then
+                    If PathMatchSpec(sz, pszFilter) Then
+                        n += 1
+                        nRet = ListNamedExports(sz, sExp)
+                        If nRet Then
+                            For i As Long = 0 To UBound(sExp)
+                                If Check2.Value = vbChecked Then
+                                    If LCase$(pszSymbol) = LCase$(sExp(i)) Then
+                                        AppendLog "Symbol " & pszSymbol & " found in " & sz
+                                        nf += 1
+                                        Continue Do
+                                    End If
+                                Else
+                                    If pszSymbol = sExp(i) Then
+                                        AppendLog "Symbol " & pszSymbol & " found in " & sz
+                                        nf += 1
+                                        Continue Do
+                                    End If
+                                End If
+                            Next
+                        End If
+                        If (n Mod 17) = 0 Then
+                            Label4.Caption = "Scanning... " & n & " so far..."
+                        End If
+                    End If
+                Else
+                    AppendLog "Path retrieval error."
+                End If
+            Loop
+            AppendLog "Done. " & n & " scanned, symbol found in " & nf
+        Else
+            AppendLog "Path not found: " & pszPath
+        End If
+        Label4.Caption = "Done."
+    End Sub
+    Public Sub ScanRecurse(ByVal siPath As IShellItem, ByVal pszFilter As String, ByVal pszSymbol As String)
+        Dim pEnum As IEnumShellItems
+        Dim siChild As IShellItem
+        Dim nRet As Long
+        Dim sExp() As String
+        Dim lp As LongPtr, sz As String
+        Dim lpn As LongPtr, szn As String
+        Dim dwAttrib As SFGAOF
+        
+        siPath.BindToHandler 0, BHID_EnumItems, IID_IEnumShellItems, pEnum
+        If pEnum Is Nothing Then Exit Sub
+        Label4.Caption = "Scanning..."
+        Do While pEnum.Next(1, siChild) = S_OK
+            sz = "": szn = "": dwAttrib = 0
+            If Check1.Value = vbChecked Then
+                siChild.GetAttributes SFGAO_FOLDER Or SFGAO_STREAM, dwAttrib
+                If ((dwAttrib And SFGAO_FOLDER) = SFGAO_FOLDER) And ((dwAttrib And SFGAO_STREAM) = 0) Then
+                    ScanRecurse siChild, pszFilter, pszSymbol
+                    Continue Do
+                End If
+            End If
+            siChild.GetDisplayName SIGDN_FILESYSPATH, lp
+            If lp Then
+                sz = LPWSTRtoStr(lp)
+            Else
+                Debug.Print "Error getting SIGDN_FILESYSPATH"
+            End If
+            siChild.GetDisplayName SIGDN_NORMALDISPLAY, lpn
+            If lpn Then
+                szn = LPWSTRtoStr(lpn)
+            Else
+                Debug.Print "Error getting SIGDN_NORMALDISPLAY"
+            End If
+            If (sz <> "") AndAlso (PathFileExists(sz)) Then
+                If PathMatchSpec(sz, pszFilter) Then
+                    n += 1
+                    nRet = ListNamedExports(sz, sExp)
+                    If nRet Then
+                        For i As Long = 0 To UBound(sExp)
+                            If Check2.Value = vbChecked Then
+                                If LCase$(pszSymbol) = LCase$(sExp(i)) Then
+                                    AppendLog "Symbol " & pszSymbol & " found in " & sz
+                                    nf += 1
+                                    Continue Do
+                                End If
+                            Else
+                                If pszSymbol = sExp(i) Then
+                                    AppendLog "Symbol " & pszSymbol & " found in " & sz
+                                    nf += 1
+                                    Continue Do
+                                End If
+                            End If
+                        Next
+                    End If
+                    If (n Mod 17) = 0 Then
+                        Label4.Caption = "Scanning... " & n & " so far..."
+                    End If
+                End If
+            Else
+                AppendLog "Path retrieval error."
+            End If
+        Loop
+    End Sub
+    
+    Private Sub Form_Load() Handles Form.Load
+        #If Win64 = 0 Then
+            Text2.Text = "C:\Windows\SysWOW64"
+        #End If
+        Dim lWOW64 As Long
+        IsWow64Process GetCurrentProcess(), lWOW64
+        If lWOW64 Then IsWOW64 = True
+        If IsWOW64 Then DisableWow64Redir
+        
+        SHAutoComplete(Text2.hWnd, SHACF_FILESYS_DIRS)
+    End Sub
+    
+    Private Sub Command2_Click() Handles Command2.Click
+        Dim pFOD As FileOpenDialog
+        Dim pFolder As IShellItem
+    
+        Set pFOD = New FileOpenDialog
+        With pFOD
+            .SetTitle "Pick folder..."
+            .SetOptions FOS_PICKFOLDERS Or FOS_FORCEFILESYSTEM Or FOS_PATHMUSTEXIST
+            On Error Resume Next
+            .Show Me.hWnd
+            .GetResult pFolder
+            On Error GoTo 0
+            If (pFolder Is Nothing) = False Then
+                Dim lpPath As LongPtr, sPath As String
+                pFolder.GetDisplayName SIGDN_FILESYSPATH, lpPath
+                Text2.Text = LPWSTRtoStr(lpPath)
+            End If
+        End With
+    End Sub
+ 
+    Private Function ListNamedExports(ByVal szPE As String, sNames() As String) As Long
+        Dim lpBaseAddress As LongPtr
+        Dim hFile As LongPtr
+        Dim hMapping As LongPtr
+        Dim nRes As Long
+        
+        hFile = CreateFileW(StrPtr(szPE), GENERIC_READ, FILE_SHARE_READ, vbNullPtr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0)
+
+        If hFile = INVALID_HANDLE_VALUE Then
+            Debug.Print "Failed to open file " & szPE
+            Exit Function
+        End If
+
+        hMapping = CreateFileMappingW(hFile, vbNullPtr, PAGE_READONLY, 0, 0, 0)
+
+        If hMapping = 0 Then
+            Debug.Print "Failed to create mapping " & szPE & " :: Error 0x" & Hex$(Err.LastDllError) & ", " & GetSystemErrorString(Err.LastDllError)
+            CloseHandle hFile
+            Return 0
+        End If
+
+        lpBaseAddress = MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0)
+    
+        If lpBaseAddress = 0 Then
+            Debug.Print "Failed to map file " & szPE & " :: Error 0x" & Hex$(Err.LastDllError) & ", " & GetSystemErrorString(Err.LastDllError)
+            CloseHandle hMapping
+            CloseHandle hFile
+            Return 0
+        End If
+        Dim tDOS As IMAGE_DOS_HEADER
+        Dim tNT32 As IMAGE_NT_HEADERS32
+        Dim tNT64 As IMAGE_NT_HEADERS64
+        Dim wMachine As Integer, dwMachine As Long
+        Dim rvaExports As Long
+        Dim uSections() As IMAGE_SECTION_HEADER
+        Dim tExport As IMAGE_EXPORT_DIRECTORY
+        Dim rvaName As Long, cbName As Long, sTmp As String
+        Dim imgBase As LongPtr
+        Dim ns As Long
+        'All EXEs and DLLs start with an IMAGE_DOS_HEADER structure
+        CopyMemory tDOS, ByVal lpBaseAddress, LenB(tDOS)
+        If tDOS.e_magic = IMAGE_DOS_SIGNATURE Then 'The magic number, 'MZ', is a good sign our address gave us a valid executable
+            'e_lfanew points to the IMAGE_NT_HEADERS structure
+        
+            'First copy IMAGE_NT_HEADERS.IMAGE_FILE_HEADER.Machine to determine which bitness-specific version to use.
+            CopyMemory wMachine, ByVal PointerAdd(lpBaseAddress, tDOS.e_lfanew + 4), 2
+            dwMachine = CIntToUInt(wMachine)
+        
+            If dwMachine = IMAGE_FILE_MACHINE_I386 Then '32bit
+                ' Debug.Print " 32bit image..."
+                CopyMemory tNT32, ByVal PointerAdd(lpBaseAddress, tDOS.e_lfanew), LenB(Of IMAGE_NT_HEADERS32)
+                If tNT32.OptionalHeader.DataDirectory(IMAGE_DIRECTORY_ENTRY_EXPORT).Size > 0 Then
+                    rvaExports = tNT32.OptionalHeader.DataDirectory(IMAGE_DIRECTORY_ENTRY_EXPORT).VirtualAddress
+                    ReDim uSections(0 To tNT32.FileHeader.NumberOfSections)
+                    CopyMemory uSections(0), ByVal PointerAdd(lpBaseAddress, tDOS.e_lfanew + LenB(tNT32)), tNT32.FileHeader.NumberOfSections * LenB(uSections(0))
+                    For ns = 0 To tNT32.FileHeader.NumberOfSections - 1
+                        If uSections(ns).VirtualAddress <= rvaExports And rvaExports <= uSections(ns).VirtualAddress + uSections(ns).SizeOfRawData Then
+                            imgBase = lpBaseAddress - uSections(ns).VirtualAddress + uSections(ns).PointerToRawData
+                            Exit For
+                        End If
+                    Next
+                    If imgBase = 0 Then
+                        Debug.Print "Invalid rvaExports"
+                        CloseHandle hMapping
+                        CloseHandle hFile
+                        Exit Function
+                    End If
+                    CopyMemory tExport, ByVal PointerAdd(imgBase, rvaExports), LenB(tExport)
+                    ' Dim cbed As Long
+                    ' Dim pExp As LongPtr = RtlImageDirectoryEntryToData(lpBaseAddress, 0, IMAGE_DIRECTORY_ENTRY_EXPORT, cbed)
+                    ' CopyMemory tExport, ByVal pExp, LenB(Of IMAGE_EXPORT_DIRECTORY)
+                    For ns = 1 To tExport.NumberOfNames
+                        CopyMemory rvaName, ByVal PointerAdd(imgBase, tExport.AddressOfNames + ((ns - 1) * 4)), 4
+                        cbName = lstrlenA(ByVal PointerAdd(imgBase, rvaName))
+    '                        Debug.Print "cbName=" & cbName
+                        If cbName > 0 Then
+                            sTmp = String$(cbName, 0)
+                            CopyMemory ByVal sTmp, ByVal PointerAdd(imgBase, rvaName), cbName
+                            ReDim Preserve sNames(nRes)
+                            sNames(nRes) = sTmp
+                            nRes = nRes + 1
+                        End If
+                    Next
+                End If
+            ElseIf dwMachine = IMAGE_FILE_MACHINE_AMD64 Then
+                ' Debug.Print " 64bit image..."
+                CopyMemory tNT64, ByVal PointerAdd(lpBaseAddress, tDOS.e_lfanew), LenB(Of IMAGE_NT_HEADERS64)
+                If tNT64.OptionalHeader.DataDirectory(IMAGE_DIRECTORY_ENTRY_EXPORT).Size > 0 Then
+                    rvaExports = tNT64.OptionalHeader.DataDirectory(IMAGE_DIRECTORY_ENTRY_EXPORT).VirtualAddress
+                    ReDim uSections(0 To tNT64.FileHeader.NumberOfSections)
+                    CopyMemory uSections(0), ByVal PointerAdd(lpBaseAddress, tDOS.e_lfanew + LenB(tNT64)), tNT64.FileHeader.NumberOfSections * LenB(uSections(0))
+                    For ns = 0 To tNT64.FileHeader.NumberOfSections - 1
+                        If uSections(ns).VirtualAddress <= rvaExports And rvaExports <= uSections(ns).VirtualAddress + uSections(ns).SizeOfRawData Then
+                            imgBase = lpBaseAddress - uSections(ns).VirtualAddress + uSections(ns).PointerToRawData
+                            Exit For
+                        End If
+                    Next
+                    If imgBase = 0 Then
+                        Debug.Print "Invalid rvaExports"
+                        CloseHandle hMapping
+                        CloseHandle hFile
+                        Exit Function
+                    End If
+                    CopyMemory tExport, ByVal PointerAdd(imgBase, rvaExports), LenB(tExport)
+                    ' Dim cbed As Long
+                    ' Dim pExp As LongPtr = RtlImageDirectoryEntryToData(lpBaseAddress, 0, IMAGE_DIRECTORY_ENTRY_EXPORT, cbed)
+                    ' CopyMemory tExport, ByVal pExp, LenB(Of IMAGE_EXPORT_DIRECTORY)
+                    For ns = 1 To tExport.NumberOfNames
+                        CopyMemory rvaName, ByVal PointerAdd(imgBase, tExport.AddressOfNames + ((ns - 1) * 4)), 4
+                        cbName = lstrlenA(ByVal PointerAdd(imgBase, rvaName))
+    '                        Debug.Print "cbName=" & cbName
+                        If cbName > 0 Then
+                            sTmp = String$(cbName, 0)
+                            CopyMemory ByVal sTmp, ByVal PointerAdd(imgBase, rvaName), cbName
+                            ReDim Preserve sNames(nRes)
+                            sNames(nRes) = sTmp
+                            nRes = nRes + 1
+                        End If
+                    Next
+                End If
+            End If
+        Else
+            Debug.Print "Signature check failed, not a valid executable."
+        End If
+        UnmapViewOfFile lpBaseAddress
+        CloseHandle hMapping
+        CloseHandle hFile
+        Return nRes
+    End Function
+ 
+    Private Sub DisableWow64Redir()
+    If IsWOW64 = False Then Exit Sub
+    On Error Resume Next
+    Dim lOld As Long
+    Wow64DisableWow64FsRedirection lOld
+    On Error GoTo 0
+    End Sub
+    Private Sub RevertWow64Redir()
+    If IsWOW64 = False Then Exit Sub
+    On Error Resume Next
+    Dim lOld As Long
+    Wow64RevertWow64FsRedirection lOld
+    On Error GoTo 0
+    End Sub
+End Class
+ 
